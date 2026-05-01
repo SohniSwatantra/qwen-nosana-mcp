@@ -11,12 +11,25 @@
 
 ## Quick install
 
+### One-time setup — get a Nosana API key (no NOS tokens, no wallet)
+
+1. Sign in at **https://deploy.nosana.com**
+2. **Account → API Keys → Create Key** (give it a name, set an expiration)
+3. Copy the key (`nos_xxx_...`) and add to your shell profile:
+   ```bash
+   export NOSANA_API_KEY=nos_xxx_your_key
+   ```
+4. Reload your shell. **That's it.** Deployments are paid for with the credit balance on your Nosana account — top up at https://deploy.nosana.com/account if needed. You do NOT need to buy NOS tokens or run `nosana wallet create`.
+
+### Install the MCP
+
 **Claude Code:**
 
 ```bash
 claude mcp add qwen-nosana -- npx -y qwen-nosana-mcp
 npx qwen-nosana setup            # installs the routing skill into ~/.claude/skills/
-npx qwen-nosana deploy --timeout 1h
+npx qwen-nosana markets          # find an A6000-class market address
+npx qwen-nosana deploy --timeout 60 --market <A6000_MARKET_ADDRESS>
 ```
 
 **Codex CLI:**
@@ -24,17 +37,11 @@ npx qwen-nosana deploy --timeout 1h
 ```bash
 codex mcp add qwen-nosana -- npx -y qwen-nosana-mcp
 npx qwen-nosana setup            # prints a recommended block for ~/.codex/AGENTS.md
-npx qwen-nosana deploy --timeout 1h
+npx qwen-nosana markets          # find an A6000-class market address
+npx qwen-nosana deploy --timeout 60 --market <A6000_MARKET_ADDRESS>
 ```
 
-That's it. Use Claude Code or Codex normally — bulky tasks automatically route through Qwen3 on your Nosana GPU. Run `npx qwen-nosana stop` when you're done to terminate the GPU early.
-
-> **One-time prerequisite:** install `@nosana/cli` and create a wallet funded with NOS tokens.
-> ```bash
-> npm install -g @nosana/cli
-> nosana wallet create
-> # fund via https://docs.nosana.io
-> ```
+That's it. Use Claude Code or Codex normally — bulky tasks automatically route through Qwen3 on your Nosana GPU. Run `npx qwen-nosana stop` when you're done to terminate the GPU early and save remaining credits.
 
 ---
 
@@ -100,11 +107,13 @@ A Nosana job is **not** "submit per request". It's **deploy a container that sta
 
 | Step | Frequency | Cost |
 |---|---|---|
-| `npx qwen-nosana deploy --timeout 1h` | **Once per work session** | Cold start 1–3 min. ~$1.50–$3 / hour reserved. |
+| `npx qwen-nosana deploy --timeout 60 --market <ADDR>` | **Once per work session** | Cold start 1–3 min. ~$1.50–$3 / hour drawn from your Nosana credits. |
 | Every prompt that triggers a Qwen tool | **Sub-second** | $0 marginal — you've already paid for the hour. |
-| `npx qwen-nosana stop` | **When done** | Terminates billing. |
+| `npx qwen-nosana stop` | **When done** | Terminates billing, returns unused credit time. |
 
-**Always pass `--timeout`.** Without it, a forgotten container can run overnight and produce a surprise tens-of-dollars bill.
+**Always pass `--timeout` (in minutes).** Without it, the deploy command refuses to run — protection against runaway credit drain.
+
+The deployment auto-stops when the timeout expires even if you never run `stop`, so the worst-case cost is bounded by the timeout you set.
 
 ### GPU class: A6000 preferred, falls back automatically
 
@@ -142,8 +151,9 @@ If both `file_path` and `text` are supplied, `file_path` wins.
 
 ## Security & trust
 
-- **Wallet keys never leave Nosana CLI.** This package shells out to `nosana job post` — it never reads or transmits your `~/.nosana/nosana_key.json`.
-- **No telemetry.** The package makes outbound HTTPS calls only to your Nosana endpoint and (during `deploy`) to the Nosana network via the official CLI.
+- **API key stays in your environment.** This package reads `NOSANA_API_KEY` from your env, uses it via the official `@nosana/kit` SDK to call `https://dashboard.k8s.prd.nos.ci/api`. The key is never written to disk by this package and never transmitted anywhere except Nosana's own API.
+- **No NOS tokens, no Solana wallet.** Deployments are funded by credits on your Nosana account (paid via fiat), not on-chain tokens.
+- **No telemetry.** The package makes outbound HTTPS calls only to (a) your Nosana deployment's Ollama endpoint and (b) Nosana's API for deploy/stop/status.
 - **MIT licensed**, source-available. Audit before installing if you're security-conscious.
 
 ---
@@ -153,13 +163,17 @@ If both `file_path` and `text` are supplied, `file_path` wins.
 ```
 qwen-nosana setup [--yes] [--remove]    Install/uninstall the Claude Code Skill.
                                          Prints recommended Codex AGENTS.md block.
-qwen-nosana deploy --timeout <DUR>      Deploy Qwen3 35B Q8 to Nosana.
-                                         DUR examples: 1h, 30m, 3600
-                  [--market <NAME>]      Pin to a specific Nosana market.
+                                         Verifies NOSANA_API_KEY is set.
+qwen-nosana markets                      List Nosana GPU markets and their addresses.
+qwen-nosana deploy --timeout <MIN>      Deploy Qwen3 35B Q8 to Nosana.
+                  --market <ADDRESS>     Required. From 'qwen-nosana markets'.
+                  [--name <NAME>]        Optional friendly name.
 qwen-nosana stop                         Stop the active deployment.
 qwen-nosana status                       Show current deployment + time remaining.
 qwen-nosana help                         Show help.
 ```
+
+All commands except `setup` and `help` require `NOSANA_API_KEY` to be set in your environment.
 
 ---
 

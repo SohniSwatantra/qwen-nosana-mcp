@@ -2,46 +2,53 @@
 import { deploy } from "./deploy.js";
 import { stop, status } from "./stop.js";
 import { setup } from "./setup.js";
+import { listMarkets } from "./markets.js";
 
 const HELP = `qwen-nosana — companion CLI for qwen-nosana-mcp
 
 USAGE
   qwen-nosana <command> [options]
 
+PREREQUISITES
+  Set NOSANA_API_KEY in your environment. Get one at:
+    https://deploy.nosana.com → Account → API Keys → Create Key
+  No NOS tokens or wallet needed — credits on your Nosana account fund deployments.
+
 COMMANDS
-  deploy    Deploy Qwen3 35B Q8 to Nosana on an A6000-class GPU and configure the MCP.
-            Options:
-              --timeout <DURATION>   Required. e.g. 1h, 30m, 3600 (seconds)
-              --market <NAME>        Optional. Nosana market to target.
+  setup [--yes] [--remove]
+        Install the Claude Code Skill (~/.claude/skills/qwen-routing.md).
+        Prints recommended block for ~/.codex/AGENTS.md if Codex is installed.
+        Verifies NOSANA_API_KEY is present and gives instructions if not.
 
-  stop      Stop the active Nosana deployment and clear local state.
+  markets
+        List available Nosana GPU markets (with their addresses).
+        Pick one with A6000-class hardware (48 GB+ VRAM) for Qwen3 35B Q8.
 
-  status    Show current deployment (URL, job ID, time remaining).
+  deploy --timeout <MINUTES> --market <ADDRESS> [--name <NAME>]
+        Deploy Qwen3 35B Q8 to Nosana on the chosen market.
+        --timeout MUST be in minutes (e.g. 60 for one hour).
+        --market is required — use 'qwen-nosana markets' to pick.
 
-  setup     Install the Claude Code Skill and print the Codex AGENTS.md block.
-            Options:
-              --yes                  Skip confirmation prompts.
-              --remove               Uninstall the skill (does not edit user configs).
+  stop
+        Stop the active Nosana deployment and clear local state.
 
-  help      Show this message.
+  status
+        Show current deployment (URL, ID, time remaining).
+
+  help
+        Show this message.
 
 EXAMPLES
+  export NOSANA_API_KEY=nos_xxx_your_key
   npx qwen-nosana setup
-  npx qwen-nosana deploy --timeout 1h
+  npx qwen-nosana markets
+  npx qwen-nosana deploy --timeout 60 --market <A6000_MARKET_ADDRESS>
   npx qwen-nosana status
   npx qwen-nosana stop
 
 DOCS
   https://github.com/SohniSwatantra/qwen-nosana-mcp
 `;
-
-function parseDuration(d: string): number {
-  const m = d.match(/^(\d+)([smh]?)$/i);
-  if (!m) throw new Error(`Invalid duration: ${d}. Use e.g. 1h, 30m, 3600`);
-  const n = parseInt(m[1], 10);
-  const unit = (m[2] || "s").toLowerCase();
-  return unit === "h" ? n * 3600 : unit === "m" ? n * 60 : n;
-}
 
 function getFlag(args: string[], name: string): string | undefined {
   const i = args.indexOf(`--${name}`);
@@ -59,13 +66,27 @@ async function main() {
   switch (cmd) {
     case "deploy": {
       const timeoutStr = getFlag(rest, "timeout");
+      const market = getFlag(rest, "market");
       if (!timeoutStr) {
-        process.stderr.write(`error: --timeout is required (e.g. --timeout 1h). Without it you risk a runaway GPU bill.\n`);
+        process.stderr.write(`error: --timeout <MINUTES> is required (e.g. --timeout 60).\n`);
+        process.exit(2);
+      }
+      if (!market) {
+        process.stderr.write(
+          `error: --market <ADDRESS> is required.\n` +
+            `Run 'qwen-nosana markets' to list available markets, or browse https://deploy.nosana.com/markets.\n`,
+        );
+        process.exit(2);
+      }
+      const timeoutMinutes = parseInt(timeoutStr, 10);
+      if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1) {
+        process.stderr.write(`error: --timeout must be a positive integer in minutes.\n`);
         process.exit(2);
       }
       await deploy({
-        timeoutSeconds: parseDuration(timeoutStr),
-        market: getFlag(rest, "market"),
+        timeoutMinutes,
+        market,
+        name: getFlag(rest, "name"),
       });
       break;
     }
@@ -74,6 +95,9 @@ async function main() {
       break;
     case "status":
       status();
+      break;
+    case "markets":
+      await listMarkets();
       break;
     case "setup":
       await setup({ autoYes: hasFlag(rest, "yes"), remove: hasFlag(rest, "remove") });

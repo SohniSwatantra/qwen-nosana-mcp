@@ -1,5 +1,15 @@
-import { spawnSync } from "node:child_process";
+import { createNosanaClient } from "@nosana/kit";
 import { clearState, readState } from "./state.js";
+
+function getApiKey(): string {
+  const key = process.env.NOSANA_API_KEY?.trim();
+  if (!key) {
+    throw new Error(
+      `NOSANA_API_KEY env var not set. Get one at https://deploy.nosana.com → Account → API Keys.`,
+    );
+  }
+  return key;
+}
 
 export async function stop(): Promise<void> {
   const state = readState();
@@ -8,12 +18,16 @@ export async function stop(): Promise<void> {
     return;
   }
 
-  process.stderr.write(`[qwen-nosana] Stopping job ${state.job_id}...\n`);
-  const result = spawnSync("nosana", ["job", "stop", state.job_id], { encoding: "utf8", stdio: "inherit" });
-  if (result.status !== 0) {
+  const client = createNosanaClient("mainnet", { api: { apiKey: getApiKey() } });
+
+  process.stderr.write(`[qwen-nosana] Stopping deployment ${state.job_id}...\n`);
+  try {
+    const dep = await client.api.deployments.get(state.job_id);
+    await dep.stop();
+  } catch (err) {
     process.stderr.write(
-      `[qwen-nosana] WARNING: 'nosana job stop' exited with code ${result.status}. ` +
-        `The job may already be stopped or expired. Clearing local state anyway.\n`,
+      `[qwen-nosana] WARNING: stop call failed (${err instanceof Error ? err.message : String(err)}). ` +
+        `The deployment may already be stopped or expired. Clearing local state anyway.\n`,
     );
   }
   clearState();
@@ -32,8 +46,9 @@ export function status(): void {
   process.stderr.write(
     `[qwen-nosana] Active deployment:\n` +
       `    Endpoint: ${state.url}\n` +
-      `    Job ID:   ${state.job_id}\n` +
+      `    ID:       ${state.job_id}\n` +
       `    Model:    ${state.model}\n` +
+      `    Market:   ${state.market}\n` +
       `    Deployed: ${new Date(state.deployed_at).toLocaleString()}\n` +
       `    Expires:  ${expiresAt.toLocaleString()} (${remainingMin > 0 ? `${remainingMin} min remaining` : "EXPIRED"})\n`,
   );
