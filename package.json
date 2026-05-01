@@ -1,0 +1,57 @@
+{
+  "name": "qwen-nosana-mcp",
+  "version": "0.1.0",
+  "description": "Open-source MCP server + CLI to run Qwen3 35B on a Nosana GPU and route bulk-text work from Claude Code / Codex to it. Privacy-first, no API key, no rate limits.",
+  "type": "module",
+  "main": "dist/mcp/index.js",
+  "bin": {
+    "qwen-nosana-mcp": "dist/mcp/index.js",
+    "qwen-nosana": "dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "nosana",
+    "docs/architecture.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/mcp/index.js dist/cli/index.js",
+    "start:mcp": "node dist/mcp/index.js",
+    "start:cli": "node dist/cli/index.js",
+    "dev:mcp": "tsx src/mcp/index.ts",
+    "dev:cli": "tsx src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "codex",
+    "nosana",
+    "qwen",
+    "qwen3",
+    "ollama",
+    "llm",
+    "gpu"
+  ],
+  "author": "Swatantra Sohni",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
