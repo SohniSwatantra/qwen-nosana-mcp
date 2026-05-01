@@ -92,9 +92,9 @@ Every tool exposes both `file_path` and `text` inputs. **Always pass `file_path`
 **Honest comparison vs. Qwen's own API:** roughly a wash. Qwen3 30B-A3B on Alibaba's API is $0.08/M input + $0.28/M output. For typical single-user usage (~100 tok/sec), API ≈ $0.13/hour vs. ~$1.50–$3/hour on Nosana — the API is often *cheaper*. So that's not the reason to use this. The actual reasons:
 
 1. **Privacy / data sovereignty** *(the primary one)*. Your prompts and data never touch Alibaba's servers (China residency). No vendor TOS to worry about. Critical for EU / GDPR / legal / healthcare / regulated-industry users.
-2. **No account, no KYC.** Pay with NOS / crypto. No Alibaba account or payment method on file.
-3. **No rate limits.** For that hour, the GPU is *yours*, not shared with other API tenants.
-4. **No vendor lock-in.** The MCP talks to any OpenAI-compatible Ollama endpoint via `NOSANA_OLLAMA_URL`. Point it at vLLM, llama.cpp, or your own server and the same MCP keeps working.
+2. **No Alibaba account.** No third-party API key on file with a foreign cloud provider — just credits on your Nosana account.
+3. **No rate limits.** For the duration of your deployment, the GPU is *yours*, not shared with other API tenants.
+4. **No vendor lock-in.** The MCP is a thin proxy over any OpenAI-compatible Ollama endpoint. Point it at vLLM, llama.cpp, or your own server (via the optional `NOSANA_OLLAMA_URL` override) and the same MCP keeps working.
 5. **Decentralization.** Nosana's GPU grid is community-run.
 
 **Where there is a real cost win:** when your agent would otherwise burn frontier-model tokens on bulk offloadable work. An hour of bulk summarization / extraction that costs ~$30–$45 on Sonnet 4.6 (or ~$32 on GPT-5) costs ~$1.50–$5 on Qwen3 + Nosana, depending on which 48 GB+ GPU your job lands on.
