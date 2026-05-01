@@ -1,11 +1,11 @@
 # qwen-nosana-mcp
 
-> Private, self-hosted **Qwen3 30B-A3B** for your **Claude Code** or **Codex CLI** agent. Your prompts and data never leave the decentralized GPU you rented — no Alibaba API key, no TOS-based content filtering, no rate limits, no per-token billing.
+> Private, self-hosted **Qwen3.6 35B** for your **Claude Code** or **Codex CLI** agent. Your prompts and data never leave the decentralized GPU you rented — no Alibaba API key, no TOS-based content filtering, no rate limits, no per-token billing.
 
 <img width="2416" height="1038" alt="image" src="https://github.com/user-attachments/assets/ca05a8c7-b9c0-4f2b-9bcd-c9cfa70836c6" />
 
 
-`qwen-nosana-mcp` is an open-source MCP server + companion CLI that lets your agent offload bulk-text work (long-document summarization, structured extraction, mass code generation, translation of long docs) to a **Qwen3 30B-A3B Q8_0** instance running on a **Nosana NVIDIA Pro 6000 Blackwell** GPU at ~$1/hour. The frontier model (Sonnet 4.6 / GPT-5) stays the smart conductor; Qwen3 becomes the cheap muscle.
+`qwen-nosana-mcp` is an open-source MCP server + companion CLI that lets your agent offload bulk-text work (long-document summarization, structured extraction, mass code generation, translation of long docs) to a **Qwen3.6 35B Q8_0** instance running on a **Nosana NVIDIA Pro 6000 Blackwell** GPU at ~$1/hour. The frontier model (Sonnet 4.6 / GPT-5) stays the smart conductor; Qwen3 becomes the cheap muscle.
 
 **Built-in safety:** every deploy is cost-bounded by default — 60-min timeout (~$1 max), 5-min idle auto-stop, hard-cap at 4 hours. You can't accidentally leave a GPU running and burn credits.
 
