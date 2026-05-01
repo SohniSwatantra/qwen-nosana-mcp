@@ -21,7 +21,7 @@
    ```bash
    export NOSANA_API_KEY=nos_xxx_your_key
    ```
-4. Reload your shell. **That's it.** Deployments are paid for with the credit balance on your Nosana account — top up at https://deploy.nosana.com/account if needed. You do NOT need to buy NOS tokens or run `nosana wallet create`.
+4. Reload your shell. **That's it.** Deployments are paid for with the credit balance on your Nosana account — top up at https://deploy.nosana.com/account if needed. 
 
 ### Install the MCP (3 commands)
 
