@@ -1,0 +1,45 @@
+{
+  "ops": [
+    {
+      "id": "qwen3-35b-a3b-q8",
+      "args": {
+        "gpu": true,
+        "image": "docker.io/ollama/ollama:0.20.0",
+        "expose": [
+          {
+            "port": 11434,
+            "health_checks": [
+              {
+                "path": "/api/tags",
+                "type": "http",
+                "method": "GET",
+                "continuous": false,
+                "expected_status": 200
+              }
+            ]
+          }
+        ],
+        "resources": [
+          {
+            "type": "Ollama",
+            "model": "%%global.variables.MODEL%%"
+          }
+        ]
+      },
+      "type": "container/run"
+    }
+  ],
+  "meta": {
+    "trigger": "qwen-nosana-mcp",
+    "system_requirements": {
+      "required_vram": 42
+    }
+  },
+  "type": "container",
+  "global": {
+    "variables": {
+      "MODEL": "qwen3.6:35b-a3b-q8_0"
+    }
+  },
+  "version": "0.1"
+}
