@@ -32,7 +32,7 @@ EXAMPLES
   npx qwen-nosana stop
 
 DOCS
-  https://github.com/swatantrasohni/qwen-nosana-mcp
+  https://github.com/SohniSwatantra/qwen-nosana-mcp
 `;
 
 function parseDuration(d: string): number {
