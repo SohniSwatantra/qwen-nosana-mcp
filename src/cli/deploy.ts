@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createNosanaClient } from "@nosana/kit";
+import type { JobDefinition } from "@nosana/kit";
 import { writeState } from "./state.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,100 +14,124 @@ const JOB_SPEC_PATH = join(PACKAGE_ROOT, "nosana", "qwen3-job.json");
 const MODEL_DEFAULT = "qwen3.6:35b-a3b-q8_0";
 
 export interface DeployOptions {
-  timeoutSeconds: number;
-  market?: string;
+  timeoutMinutes: number;
+  market: string;
+  name?: string;
 }
 
-function checkNosanaCli(): void {
-  const result = spawnSync("nosana", ["--version"], { stdio: "ignore" });
-  if (result.error || result.status !== 0) {
+function getApiKey(): string {
+  const key = process.env.NOSANA_API_KEY?.trim();
+  if (!key) {
     throw new Error(
-      `'nosana' CLI not found on PATH. Install it with:\n  npm install -g @nosana/cli\nThen run 'nosana wallet create' and fund it with NOS tokens.`,
+      `NOSANA_API_KEY env var not set.\n` +
+        `Get an API key at https://deploy.nosana.com → Account → API Keys → Create Key.\n` +
+        `Then set it in your shell:\n` +
+        `    export NOSANA_API_KEY=nos_xxx_your_key`,
     );
   }
+  return key;
 }
 
-function checkWallet(): void {
-  const walletPath = join(homedir(), ".nosana", "nosana_key.json");
-  if (!existsSync(walletPath)) {
-    throw new Error(
-      `Nosana wallet not found at ${walletPath}.\nRun 'nosana wallet create' to create one, then fund it with NOS tokens.`,
-    );
-  }
-}
-
-async function pollHealth(url: string, deadlineMs: number): Promise<void> {
-  const start = Date.now();
-  let lastErr = "";
-  while (Date.now() < deadlineMs) {
-    try {
-      const res = await fetch(`${url}/api/tags`);
-      if (res.ok) return;
-      lastErr = `${res.status} ${res.statusText}`;
-    } catch (err) {
-      lastErr = err instanceof Error ? err.message : String(err);
-    }
-    await new Promise((r) => setTimeout(r, 5000));
-    process.stderr.write(`  ...still waiting (${Math.round((Date.now() - start) / 1000)}s elapsed, last: ${lastErr})\n`);
-  }
-  throw new Error(`Endpoint at ${url} did not become healthy within ${(deadlineMs - start) / 1000}s. Last error: ${lastErr}`);
-}
-
-export async function deploy(opts: DeployOptions): Promise<void> {
-  process.stderr.write(`[qwen-nosana] Pre-flight checks...\n`);
-  checkNosanaCli();
-  checkWallet();
-
+function loadJobDefinition(): JobDefinition {
   if (!existsSync(JOB_SPEC_PATH)) {
     throw new Error(`Bundled job spec missing at ${JOB_SPEC_PATH}. Reinstall qwen-nosana-mcp.`);
   }
+  return JSON.parse(readFileSync(JOB_SPEC_PATH, "utf8")) as JobDefinition;
+}
 
-  const args = ["job", "post", "-f", JOB_SPEC_PATH, "--timeout", String(opts.timeoutSeconds)];
-  if (opts.market) args.push("--market", opts.market);
-
-  process.stderr.write(`[qwen-nosana] Running: nosana ${args.join(" ")}\n`);
-  process.stderr.write(`[qwen-nosana] (this triggers a paid Nosana job — cost ~$1.50–$3 / hour for A6000-class GPU)\n`);
-
-  const result = spawnSync("nosana", args, { encoding: "utf8" });
-  if (result.status !== 0) {
-    throw new Error(`nosana job post failed (exit ${result.status}):\n${result.stderr || result.stdout}`);
+async function pollUntilRunning(
+  client: ReturnType<typeof createNosanaClient>,
+  id: string,
+  deadlineMs: number,
+): Promise<{ url: string; status: string }> {
+  let lastStatus = "STARTING";
+  while (Date.now() < deadlineMs) {
+    const dep = await client.api.deployments.get(id);
+    lastStatus = dep.status;
+    if (dep.status === "RUNNING" && dep.endpoints?.length > 0) {
+      const url = dep.endpoints[0].url;
+      return { url, status: dep.status };
+    }
+    if (dep.status === "ERROR" || dep.status === "STOPPED" || dep.status === "ARCHIVED") {
+      throw new Error(`Deployment ${id} entered terminal status ${dep.status} before becoming healthy.`);
+    }
+    if (dep.status === "INSUFFICIENT_FUNDS") {
+      throw new Error(
+        `Deployment ${id} stopped: INSUFFICIENT_FUNDS. Top up credits at https://deploy.nosana.com/account.`,
+      );
+    }
+    process.stderr.write(`  ...status=${lastStatus} (${Math.round((Date.now() - (deadlineMs - 5 * 60 * 1000)) / 1000)}s elapsed)\n`);
+    await new Promise((r) => setTimeout(r, 5000));
   }
+  throw new Error(
+    `Deployment ${id} did not become RUNNING within timeout. Last status: ${lastStatus}. ` +
+      `Check https://deploy.nosana.com/deployments/${id} for details.`,
+  );
+}
 
-  const stdout = result.stdout;
-  process.stdout.write(stdout);
+export async function deploy(opts: DeployOptions): Promise<void> {
+  const apiKey = getApiKey();
 
-  const urlMatch = stdout.match(/https:\/\/[a-z0-9.-]+\.node\.k8s\.[a-z]+\.nos\.ci/i);
-  const idMatch = stdout.match(/job\s*id[:\s]+([a-zA-Z0-9_-]+)/i) || stdout.match(/\b([0-9A-HJ-NP-Za-km-z]{43,44})\b/);
+  process.stderr.write(`[qwen-nosana] Connecting to Nosana API...\n`);
+  const client = createNosanaClient("mainnet", { api: { apiKey } });
 
-  if (!urlMatch || !idMatch) {
-    throw new Error(
-      `Job posted but could not parse URL/ID from nosana CLI output. Capture them manually and run:\n  echo '{"url":"<URL>","job_id":"<ID>",...}' > ~/.qwen-nosana/current.json\n\nFull output above.`,
+  let balance: { credits: number } | undefined;
+  try {
+    const b = await client.api.credits.balance();
+    balance = b as unknown as { credits: number };
+    process.stderr.write(`[qwen-nosana] Credits balance: ${JSON.stringify(b)}\n`);
+  } catch (err) {
+    process.stderr.write(
+      `[qwen-nosana] WARNING: Could not fetch credits balance (${err instanceof Error ? err.message : String(err)}). Continuing.\n`,
     );
   }
 
-  const url = urlMatch[0].replace(/\/+$/, "");
-  const jobId = idMatch[1];
+  const jobDefinition = loadJobDefinition();
+  const name = opts.name ?? `qwen-nosana-${Date.now()}`;
 
-  process.stderr.write(`[qwen-nosana] Job posted (id=${jobId}). Polling endpoint health (cold start: 1–3 min)...\n`);
-  await pollHealth(url, Date.now() + 4 * 60 * 1000);
+  process.stderr.write(
+    `\n[qwen-nosana] Creating deployment:\n` +
+      `    name:     ${name}\n` +
+      `    market:   ${opts.market}\n` +
+      `    timeout:  ${opts.timeoutMinutes} min\n` +
+      `    strategy: SIMPLE\n` +
+      `    model:    ${MODEL_DEFAULT}\n\n` +
+      `[qwen-nosana] (this draws down your credit balance — ~$1.50–$3 / hour for A6000-class GPU)\n\n`,
+  );
+
+  const deployment = await client.api.deployments.create({
+    name,
+    market: opts.market,
+    replicas: 1,
+    timeout: opts.timeoutMinutes,
+    strategy: "SIMPLE",
+    job_definition: jobDefinition,
+  });
+
+  process.stderr.write(`[qwen-nosana] Deployment created (id=${deployment.id}). Starting and polling...\n`);
+  process.stderr.write(`[qwen-nosana] Cold start typically 1–3 min (Ollama pulling Qwen3 35B Q8 weights).\n`);
+
+  await deployment.start();
+
+  const { url } = await pollUntilRunning(client, deployment.id, Date.now() + 5 * 60 * 1000);
 
   const now = new Date();
   writeState({
     url,
-    job_id: jobId,
+    job_id: deployment.id,
     deployed_at: now.toISOString(),
-    expires_at: new Date(now.getTime() + opts.timeoutSeconds * 1000).toISOString(),
-    market: opts.market ?? "default",
+    expires_at: new Date(now.getTime() + opts.timeoutMinutes * 60 * 1000).toISOString(),
+    market: opts.market,
     model: MODEL_DEFAULT,
   });
 
   process.stderr.write(
     `\n[qwen-nosana] ✅ Deployed!\n` +
-      `    Endpoint: ${url}\n` +
-      `    Job ID:   ${jobId}\n` +
-      `    Auto-stops at: ${new Date(now.getTime() + opts.timeoutSeconds * 1000).toLocaleString()}\n` +
+      `    Endpoint:  ${url}\n` +
+      `    ID:        ${deployment.id}\n` +
+      `    Auto-stops: ${new Date(now.getTime() + opts.timeoutMinutes * 60 * 1000).toLocaleString()}\n` +
       `    State written to ~/.qwen-nosana/current.json\n\n` +
       `    The MCP will pick this up automatically. Use Claude Code or Codex normally.\n` +
-      `    Run 'npx qwen-nosana stop' to terminate early and save remaining hours.\n`,
+      `    Run 'npx qwen-nosana stop' to terminate early and preserve credits.\n`,
   );
 }

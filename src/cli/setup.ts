@@ -15,7 +15,6 @@ const CLAUDE_SKILLS_DIR = join(CLAUDE_DIR, "skills");
 const CLAUDE_SKILL_DEST = join(CLAUDE_SKILLS_DIR, "qwen-routing.md");
 
 const CODEX_DIR = join(homedir(), ".codex");
-const NOSANA_WALLET = join(homedir(), ".nosana", "nosana_key.json");
 
 async function confirm(question: string, autoYes: boolean): Promise<boolean> {
   if (autoYes) return true;
@@ -66,18 +65,22 @@ export async function setup(opts: { autoYes: boolean; remove: boolean }): Promis
     process.stderr.write(`✗ Codex CLI not detected (no ${CODEX_DIR}). Skipping AGENTS.md hint.\n\n`);
   }
 
-  if (existsSync(NOSANA_WALLET)) {
-    process.stderr.write(`✓ Nosana wallet found at ${NOSANA_WALLET}\n\n`);
+  if (process.env.NOSANA_API_KEY) {
+    process.stderr.write(`✓ NOSANA_API_KEY env var detected (length=${process.env.NOSANA_API_KEY.length}).\n\n`);
   } else {
     process.stderr.write(
-      `✗ Nosana wallet missing.\n` +
-        `  To enable 'qwen-nosana deploy', run:\n` +
-        `      npm install -g @nosana/cli\n` +
-        `      nosana wallet create\n` +
-        `      (then fund the wallet with NOS tokens — see https://docs.nosana.io)\n\n`,
+      `✗ NOSANA_API_KEY env var not set.\n` +
+        `  To deploy, get an API key:\n` +
+        `      1. Sign in at https://deploy.nosana.com\n` +
+        `      2. Account → API Keys → Create Key\n` +
+        `      3. Add to your shell profile (~/.zshrc or ~/.bashrc):\n` +
+        `             export NOSANA_API_KEY=nos_xxx_your_key\n` +
+        `      4. Reload your shell or run: export NOSANA_API_KEY=nos_xxx_...\n\n` +
+        `  No NOS tokens or wallet needed — credits on your Nosana account fund deployments.\n\n`,
     );
   }
 
   process.stderr.write(`[qwen-nosana setup] Done.\n`);
-  process.stderr.write(`Next: 'npx qwen-nosana deploy --timeout 1h' to spin up Qwen3 on Nosana.\n`);
+  process.stderr.write(`Next: 'npx qwen-nosana markets' to find an A6000-class market, then\n`);
+  process.stderr.write(`      'npx qwen-nosana deploy --timeout 60 --market <ADDRESS>' to spin up Qwen3 on Nosana.\n`);
 }
