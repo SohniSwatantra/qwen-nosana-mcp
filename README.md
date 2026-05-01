@@ -2,7 +2,8 @@
 
 > Private, self-hosted **Qwen3 35B** for your **Claude Code** or **Codex CLI** agent. Your prompts and data never leave the decentralized GPU you rented — no Alibaba API key, no TOS-based content filtering, no rate limits, no per-token billing.
 
-![Architecture](docs/architecture.png)
+<img width="2416" height="1038" alt="image" src="https://github.com/user-attachments/assets/ca05a8c7-b9c0-4f2b-9bcd-c9cfa70836c6" />
+
 
 `qwen-nosana-mcp` is an open-source MCP server + companion CLI that lets your agent offload bulk-text work (long-document summarization, structured extraction, mass code generation, translation of long docs) to a **Qwen3 35B Q8_0** instance running on a **Nosana** A6000 GPU. The frontier model (Sonnet 4.6 / GPT-5) stays the smart conductor; Qwen3 becomes the cheap muscle.
 
