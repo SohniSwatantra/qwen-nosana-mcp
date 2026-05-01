@@ -1,11 +1,13 @@
 # qwen-nosana-mcp
 
-> Private, self-hosted **Qwen3 35B** for your **Claude Code** or **Codex CLI** agent. Your prompts and data never leave the decentralized GPU you rented — no Alibaba API key, no TOS-based content filtering, no rate limits, no per-token billing.
+> Private, self-hosted **Qwen3 30B-A3B** for your **Claude Code** or **Codex CLI** agent. Your prompts and data never leave the decentralized GPU you rented — no Alibaba API key, no TOS-based content filtering, no rate limits, no per-token billing.
 
 <img width="2416" height="1038" alt="image" src="https://github.com/user-attachments/assets/ca05a8c7-b9c0-4f2b-9bcd-c9cfa70836c6" />
 
 
-`qwen-nosana-mcp` is an open-source MCP server + companion CLI that lets your agent offload bulk-text work (long-document summarization, structured extraction, mass code generation, translation of long docs) to a **Qwen3 35B Q8_0** instance running on a **Nosana** A6000 GPU. The frontier model (Sonnet 4.6 / GPT-5) stays the smart conductor; Qwen3 becomes the cheap muscle.
+`qwen-nosana-mcp` is an open-source MCP server + companion CLI that lets your agent offload bulk-text work (long-document summarization, structured extraction, mass code generation, translation of long docs) to a **Qwen3 30B-A3B Q8_0** instance running on a **Nosana NVIDIA Pro 6000 Blackwell** GPU at ~$1/hour. The frontier model (Sonnet 4.6 / GPT-5) stays the smart conductor; Qwen3 becomes the cheap muscle.
+
+**Built-in safety:** every deploy is cost-bounded by default — 60-min timeout (~$1 max), 5-min idle auto-stop, hard-cap at 4 hours. You can't accidentally leave a GPU running and burn credits.
 
 ---
 
@@ -21,27 +23,27 @@
    ```
 4. Reload your shell. **That's it.** Deployments are paid for with the credit balance on your Nosana account — top up at https://deploy.nosana.com/account if needed. You do NOT need to buy NOS tokens or run `nosana wallet create`.
 
-### Install the MCP
+### Install the MCP (3 commands)
 
 **Claude Code:**
 
 ```bash
-claude mcp add qwen-nosana -- npx -y qwen-nosana-mcp
+claude mcp add qwen-nosana -e NOSANA_API_KEY=$NOSANA_API_KEY -- npx -y qwen-nosana-mcp
 npx qwen-nosana setup            # installs the routing skill into ~/.claude/skills/
-npx qwen-nosana markets          # find an A6000-class market address
-npx qwen-nosana deploy --timeout 60 --market <A6000_MARKET_ADDRESS>
+npx qwen-nosana deploy           # auto-picks Pro 6000 SOC2, 60-min timeout (~$1 max)
 ```
 
 **Codex CLI:**
 
 ```bash
-codex mcp add qwen-nosana -- npx -y qwen-nosana-mcp
+codex mcp add qwen-nosana --env NOSANA_API_KEY=$NOSANA_API_KEY -- npx -y qwen-nosana-mcp
 npx qwen-nosana setup            # prints a recommended block for ~/.codex/AGENTS.md
-npx qwen-nosana markets          # find an A6000-class market address
-npx qwen-nosana deploy --timeout 60 --market <A6000_MARKET_ADDRESS>
+npx qwen-nosana deploy
 ```
 
-That's it. Use Claude Code or Codex normally — bulky tasks automatically route through Qwen3 on your Nosana GPU. Run `npx qwen-nosana stop` when you're done to terminate the GPU early and save remaining credits.
+That's it. Use Claude Code or Codex normally — bulky tasks automatically route through Qwen3 on your Nosana GPU. Run `npx qwen-nosana stop` to terminate the GPU early; otherwise the MCP auto-stops after 5 min of idle to protect your credits.
+
+> **Want to pick a different GPU?** Run `npx qwen-nosana markets` to list all options with prices, then `npx qwen-nosana deploy --market <ADDRESS>`.
 
 ---
 
@@ -77,7 +79,7 @@ The MCP exposes 4 tools to your agent. The agent (Sonnet / GPT-5) decides which 
 | Process | Sonnet: 300K input + 2K output | Qwen on Nosana: 300K → 2K summary |
 | **Sonnet sees** | 300K + 2K | **~50 tok (tool call) + ~2K (result)** |
 | **Sonnet cost (Sonnet 4.6 rates)** | ~$0.93 | **~$0.04** |
-| Plus | — | Amortized share of $1.50–$3 / hr A6000 |
+| Plus | — | Amortized share of ~$1 / hr Pro 6000 Blackwell |
 
 → **~20× less Sonnet usage** for that class of work. The Nosana hour amortizes — push more bulk through it, the per-call cost drops further.
 
@@ -89,7 +91,7 @@ Every tool exposes both `file_path` and `text` inputs. **Always pass `file_path`
 
 ## Why this MCP exists (it's not about cheaper inference)
 
-**Honest comparison vs. Qwen's own API:** roughly a wash. Qwen3 30B-A3B on Alibaba's API is $0.08/M input + $0.28/M output. For typical single-user usage (~100 tok/sec), API ≈ $0.13/hour vs. ~$1.50–$3/hour on Nosana — the API is often *cheaper*. So that's not the reason to use this. The actual reasons:
+**Honest comparison vs. Qwen's own API:** roughly a wash. Qwen3 30B-A3B on Alibaba's API is $0.08/M input + $0.28/M output. For typical single-user usage (~100 tok/sec), API ≈ $0.13/hour vs. ~$1/hour on Nosana Pro 6000 — the API is often *cheaper*. So that's not the reason to use this. The actual reasons:
 
 1. **Privacy / data sovereignty** *(the primary one)*. Your prompts and data never touch Alibaba's servers (China residency). No vendor TOS to worry about. Critical for EU / GDPR / legal / healthcare / regulated-industry users.
 2. **No Alibaba account.** No third-party API key on file with a foreign cloud provider — just credits on your Nosana account.
@@ -97,7 +99,7 @@ Every tool exposes both `file_path` and `text` inputs. **Always pass `file_path`
 4. **No vendor lock-in.** The MCP is a thin proxy over any OpenAI-compatible Ollama endpoint. Point it at vLLM, llama.cpp, or your own server (via the optional `NOSANA_OLLAMA_URL` override) and the same MCP keeps working.
 5. **Decentralization.** Nosana's GPU grid is community-run.
 
-**Where there is a real cost win:** when your agent would otherwise burn frontier-model tokens on bulk offloadable work. An hour of bulk summarization / extraction that costs ~$30–$45 on Sonnet 4.6 (or ~$32 on GPT-5) costs ~$1.50–$5 on Qwen3 + Nosana, depending on which 48 GB+ GPU your job lands on.
+**Where there is a real cost win:** when your agent would otherwise burn frontier-model tokens on bulk offloadable work. An hour of bulk summarization / extraction that costs ~$30–$45 on Sonnet 4.6 (or ~$32 on GPT-5) costs ~$1 on Qwen3 + Pro 6000 Blackwell. Roughly **30–45× cheaper** for offloadable work.
 
 ---
 
@@ -107,23 +109,30 @@ A Nosana job is **not** "submit per request". It's **deploy a container that sta
 
 | Step | Frequency | Cost |
 |---|---|---|
-| `npx qwen-nosana deploy --timeout 60 --market <ADDR>` | **Once per work session** | Cold start 1–3 min. ~$1.50–$3 / hour drawn from your Nosana credits. |
+| `npx qwen-nosana deploy` | **Once per work session** | Cold start 1–3 min (sometimes 8–15 min if model is fresh on the host). ~$1/hr on Pro 6000 Blackwell. |
 | Every prompt that triggers a Qwen tool | **Sub-second** | $0 marginal — you've already paid for the hour. |
-| `npx qwen-nosana stop` | **When done** | Terminates billing, returns unused credit time. |
+| `npx qwen-nosana stop` *(or 5 min idle, or 60-min timeout, whichever comes first)* | **Automatic** | Terminates billing, returns unused credit time. |
 
-**Always pass `--timeout` (in minutes).** Without it, the deploy command refuses to run — protection against runaway credit drain.
+### Built-in credit-safety (no flags needed)
 
-The deployment auto-stops when the timeout expires even if you never run `stop`, so the worst-case cost is bounded by the timeout you set.
+Three independent layers protect you from a runaway GPU bill:
 
-### GPU class: A6000 preferred, falls back automatically
+1. **Default 60-min timeout** if you don't pass `--timeout`. Worst case: ~$1 per accidental deploy.
+2. **5-min idle auto-stop** in the MCP server. If you stop using Qwen tools, the GPU stops itself, even if your Claude Code is still open. Override via `QWEN_IDLE_TIMEOUT_MIN` env var (set to `0` to disable).
+3. **240-min hard cap** on `--timeout` unless you explicitly pass `--allow-long-deploy`. Prevents fat-finger 7-day reservations.
+
+So the **maximum accidental spend is ~$4** (240 min × ~$1/hr), and only if you've explicitly typed `--allow-long-deploy`.
+
+### GPU class: Pro 6000 preferred, fallback to A6000
 
 The bundled `nosana/qwen3-job.json` declares `required_vram: 42`, which qualifies:
 
-- **NVIDIA RTX A6000 (48 GB)** — preferred, ~$1.50/hr
+- **NVIDIA Pro 6000 Blackwell (96 GB)** — preferred, ~$1/hr ✨ best value for Q8
+- **NVIDIA RTX A6000 (48 GB)** — fallback, ~$1.50/hr
 - **L40 / L40S (48 GB)** — common fallback, ~$1.50–$2.50/hr
 - **A100 80 GB** / **H100 80 GB** — rarer, ~$3–$5/hr
 
-It excludes RTX 3090, 4090, and 5090 because Q8_0 of Qwen3 35B-A3B needs ~36–40 GB working set (weights + KV cache). A6000 is the cost/quality sweet spot; the scheduler picks whatever's available at deploy time.
+`qwen-nosana deploy` auto-selects the Pro 6000 SOC2 market if you don't pass `--market`. RTX 3090, 4090, and 5090 are excluded because Q8_0 of Qwen3 30B-A3B needs ~36 GB working set (weights + KV cache).
 
 ---
 
@@ -164,16 +173,27 @@ If both `file_path` and `text` are supplied, `file_path` wins.
 qwen-nosana setup [--yes] [--remove]    Install/uninstall the Claude Code Skill.
                                          Prints recommended Codex AGENTS.md block.
                                          Verifies NOSANA_API_KEY is set.
-qwen-nosana markets                      List Nosana GPU markets and their addresses.
-qwen-nosana deploy --timeout <MIN>      Deploy Qwen3 35B Q8 to Nosana.
-                  --market <ADDRESS>     Required. From 'qwen-nosana markets'.
-                  [--name <NAME>]        Optional friendly name.
-qwen-nosana stop                         Stop the active deployment.
+qwen-nosana markets                      List Nosana GPU markets compatible with Qwen3 30B-A3B Q8.
+qwen-nosana deploy                       Deploy Qwen3 30B-A3B Q8 to Nosana.
+                  [--timeout <MIN>]      Default 60 min. Hard-capped at 240 unless --allow-long-deploy.
+                  [--market <ADDRESS>]   Default: auto-detect Pro 6000 SOC2.
+                  [--name <NAME>]        Optional friendly deployment name.
+                  [--allow-long-deploy]  Bypass the 240-min safety cap.
+qwen-nosana stop                         Stop the active deployment early.
 qwen-nosana status                       Show current deployment + time remaining.
 qwen-nosana help                         Show help.
 ```
 
 All commands except `setup` and `help` require `NOSANA_API_KEY` to be set in your environment.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NOSANA_API_KEY` | (required) | Auth for Nosana API. Get from https://deploy.nosana.com → Account → API Keys. |
+| `QWEN_IDLE_TIMEOUT_MIN` | `5` | MCP server auto-stops the GPU after this many minutes of no tool calls. Set to `0` to disable. |
+| `QWEN_MODEL` | `qwen3:30b-a3b-q8_0` | Override the model tag the MCP talks to (advanced). |
+| `NOSANA_OLLAMA_URL` | (auto from `~/.qwen-nosana/current.json`) | Override the endpoint URL. Useful for pointing at vLLM / local Ollama / non-Nosana hosts. |
 
 ---
 

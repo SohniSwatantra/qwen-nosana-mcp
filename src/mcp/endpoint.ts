@@ -28,5 +28,5 @@ export function resolveEndpoint(): EndpointConfig {
 }
 
 export function getModel(): string {
-  return process.env.QWEN_MODEL?.trim() || "qwen3.6:35b-a3b-q8_0";
+  return process.env.QWEN_MODEL?.trim() || "qwen3:30b-a3b-q8_0";
 }
