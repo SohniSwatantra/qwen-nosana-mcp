@@ -1,11 +1,11 @@
 ---
 name: qwen-nosana-routing
-description: Route bulk-text tasks (long-document summarization, structured extraction, mass code generation, translation of long docs) to Qwen3 35B running on Nosana via the qwen-nosana MCP instead of processing them with Sonnet directly. Saves significant tokens for input-heavy or output-heavy work without sacrificing quality.
+description: Route bulk-text tasks (long-document summarization, structured extraction, mass code generation, translation of long docs) to Qwen3 30B-A3B running on Nosana via the qwen-nosana MCP instead of processing them with Sonnet directly. Saves significant tokens for input-heavy or output-heavy work without sacrificing quality.
 ---
 
 # Qwen3-on-Nosana Tool Routing
 
-When the user's task involves processing more than ~5,000 tokens of input, generating more than ~100 lines of output, or doing repetitive bulk text transformation, prefer the `qwen-nosana` MCP tools over doing the work directly. Qwen3 35B (Q8) is near-frontier quality for this class of work and runs on a rented Nosana GPU the user controls.
+When the user's task involves processing more than ~5,000 tokens of input, generating more than ~100 lines of output, or doing repetitive bulk text transformation, prefer the `qwen-nosana` MCP tools over doing the work directly. Qwen3 30B-A3B (Q8) is near-frontier quality for this class of work and runs on a rented Nosana GPU the user controls (typically NVIDIA Pro 6000 Blackwell at ~$1/hour).
 
 ## When to use which tool
 

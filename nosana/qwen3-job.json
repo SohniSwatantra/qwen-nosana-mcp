@@ -38,7 +38,7 @@
   "type": "container",
   "global": {
     "variables": {
-      "MODEL": "qwen3.6:35b-a3b-q8_0"
+      "MODEL": "qwen3:30b-a3b-q8_0"
     }
   },
   "version": "0.1"
