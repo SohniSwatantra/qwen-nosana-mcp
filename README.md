@@ -11,7 +11,7 @@
 
 ## Quick install
 
-### One-time setup — get a Nosana API key (no NOS tokens, no wallet)
+### One-time setup — get a Nosana API key 
 
 1. Sign in at **https://deploy.nosana.com**
 2. **Account → API Keys → Create Key** (give it a name, set an expiration)
